@@ -30,9 +30,9 @@ func Remove[T any, C uint8 | uint16 | uint32 | uint64](s Set[T, C], ts ...T) {
 	}
 }
 
-// ContainsAll tests to see if the Sets contain all the same things in any order.
+// ContainsExactly tests to see if the Sets contain exactly the same things in any order.
 // This can be used as a basic "equals" test as well.
-func ContainsAll[T any, C uint8 | uint16 | uint32 | uint64](s1 Set[T, C], s2 Set[T, C]) bool {
+func ContainsExactly[T any, C uint8 | uint16 | uint32 | uint64](s1 Set[T, C], s2 Set[T, C]) bool {
 	s1ids := slices.Clone(s1.identities())
 	s2ids := slices.Clone(s2.identities())
 	slices.Sort(s1ids)
