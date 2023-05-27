@@ -14,6 +14,7 @@ func New[T any, C uint8 | uint16 | uint32 | uint64](s ...T) Set[T, C] {
 	return ns
 }
 
+// Add this mutates the internal state of the Set
 func Add[T any, C uint8 | uint16 | uint32 | uint64](s Set[T, C], ts ...T) []string {
 	ids := make([]string, 0, len(ts))
 	for _, t := range ts {
@@ -22,13 +23,16 @@ func Add[T any, C uint8 | uint16 | uint32 | uint64](s Set[T, C], ts ...T) []stri
 	return ids
 }
 
+// Remove this mutates the internal state of the Set
 func Remove[T any, C uint8 | uint16 | uint32 | uint64](s Set[T, C], ts ...T) {
 	for _, t := range ts {
 		s.remove(t)
 	}
 }
 
-func Equal[T any, C uint8 | uint16 | uint32 | uint64](s1 Set[T, C], s2 Set[T, C]) bool {
+// ContainsAll tests to see if the Sets contain all the same things in any order.
+// This can be used as a basic "equals" test as well.
+func ContainsAll[T any, C uint8 | uint16 | uint32 | uint64](s1 Set[T, C], s2 Set[T, C]) bool {
 	s1ids := slices.Clone(s1.identities())
 	s2ids := slices.Clone(s2.identities())
 	slices.Sort(s1ids)
@@ -36,12 +40,16 @@ func Equal[T any, C uint8 | uint16 | uint32 | uint64](s1 Set[T, C], s2 Set[T, C]
 	return slices.Equal(s1.identities(), s2.identities())
 }
 
-func Union[T any, C uint8 | uint16 | uint32 | uint64](s1 Set[T, C], s2 Set[T, C]) Set[T, C] {
-	ns := New[T, C](s1.ToSlice()...)
-	Add(New[T, C](s2.ToSlice()...))
+// Union returns a new Set with all the items from all the Sets
+func Union[T any, C uint8 | uint16 | uint32 | uint64](s1 ...Set[T, C]) Set[T, C] {
+	ns := New[T, C]()
+	for _, s := range s1 {
+		Add(New[T, C](s.ToSlice()...))
+	}
 	return ns
 }
 
+// Intersection returns a new Set with only the items that exist in both Sets
 func Intersection[T any, C uint8 | uint16 | uint32 | uint64](s1 Set[T, C], s2 Set[T, C]) Set[T, C] {
 	ns := New[T, C]()
 	for _, id := range s1.identities() {
