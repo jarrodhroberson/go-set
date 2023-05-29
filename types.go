@@ -53,7 +53,7 @@ func (s set[T, C]) get(id string) (T, error) {
 	if v, ok := s.s[id]; ok {
 		return v, nil
 	} else {
-		return v, fmt.Errorf("id: %s not found")
+		return v, fmt.Errorf("id: %s not found", id)
 	}
 }
 

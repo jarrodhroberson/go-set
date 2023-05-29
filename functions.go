@@ -1,26 +1,27 @@
 package sets
 
 import (
-	"github.com/jarrodhroberson/go-set/identity"
 	"golang.org/x/exp/slices"
+
+	"github.com/jarrodhroberson/go-set/internal/identity"
 )
 
 // New creates a new Set using the identity.HashStructIdentity function for determining uniqueness of non-comparable T any
 func New[T any, C uint8 | uint16 | uint32 | uint64](s ...T) Set[T, C] {
 	ns := set[T, C]{
-		idfunc: identity.HashStructIdentity[T],
+		s:      map[string]T{},
+		c:      map[string]C{},
+		idfunc: identity.HashIdentity[T],
 	}
-	_ = Add[T, C](ns, s...)
+	Add[T, C](ns, s...)
 	return ns
 }
 
 // Add this mutates the internal state of the Set
-func Add[T any, C uint8 | uint16 | uint32 | uint64](s Set[T, C], ts ...T) []string {
-	ids := make([]string, 0, len(ts))
+func Add[T any, C uint8 | uint16 | uint32 | uint64](s Set[T, C], ts ...T) {
 	for _, t := range ts {
-		ids = append(ids, s.add(t))
+		s.add(t)
 	}
-	return ids
 }
 
 // Remove this mutates the internal state of the Set
