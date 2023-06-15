@@ -29,7 +29,7 @@ import (
 // New creates a new Set using the identity.HashStructIdentity function for determining uniqueness of non-comparable T any
 func New[T any, C uint8 | uint16 | uint32 | uint64](s ...T) Set[T, C] {
 	ns := &set[T, C]{
-		insertionOrder: make([]string, 9, len(s)),
+		insertionOrder: make([]string, 0, len(s)),
 		idAddCount:     make(map[string]T, len(s)),
 		idValue:        make(map[string]C, len(s)),
 		idfunc:         identity.HashIdentity[T],
