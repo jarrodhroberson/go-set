@@ -2,6 +2,8 @@ package sets
 
 import (
 	"fmt"
+
+	"golang.org/x/exp/slices"
 )
 
 // Set unique list of instances of a type
@@ -22,76 +24,77 @@ type Set[T any, C uint8 | uint16 | uint32 | uint64] interface {
 // set struct that implements the Set interface
 // insertion order is not guaranteed
 type set[T any, C uint8 | uint16 | uint32 | uint64] struct {
-	s      map[string]T
-	c      map[string]C
-	idfunc func(T) string
+	insertionOrder []string
+	idAddCount     map[string]T
+	idValue        map[string]C
+	idfunc         func(T) string
 }
 
 // identities returns the list of values that uniquely identify a type,
 // this is because the key in the backing map must be `comparable`
-func (s set[T, C]) identities() []string {
-	var ids = make([]string, 0, len(s.s))
-	for k := range s.s {
-		ids = append(ids, k)
-	}
-	return ids
+func (s *set[T, C]) identities() []string {
+	return slices.Clone(s.insertionOrder)
 }
 
-func (s set[T, C]) add(t T) string {
+func (s *set[T, C]) add(t T) string {
 	id := s.idfunc(t)
-	if count, ok := s.c[id]; ok {
+	if count, ok := s.idValue[id]; ok {
 		count++
-		s.c[id] = count
+		s.idValue[id] = count
 	} else {
-		s.s[id] = t
-		s.c[id] = C(1)
+		s.insertionOrder = append(s.insertionOrder, id)
+		s.idAddCount[id] = t
+		s.idValue[id] = C(1)
 	}
 	return id
 }
 
-func (s set[T, C]) get(id string) (T, error) {
-	if v, ok := s.s[id]; ok {
+func (s *set[T, C]) get(id string) (T, error) {
+	if v, ok := s.idAddCount[id]; ok {
 		return v, nil
 	} else {
-		return v, fmt.Errorf("id: %s not found", id)
+		return v, fmt.Errorf("id: %idAddCount not found", id)
 	}
 }
 
-func (s set[T, C]) remove(t T) bool {
+func (s *set[T, C]) remove(t T) bool {
 	id := s.idfunc(t)
-	if _, ok := s.c[id]; ok {
-		delete(s.s, id)
-		delete(s.c, id)
+	if _, ok := s.idValue[id]; ok {
+		idx := slices.Index(s.insertionOrder, id)
+		slices.Delete(s.insertionOrder, idx, idx+1)
+		delete(s.idAddCount, id)
+		delete(s.idValue, id)
 		return true
 	}
 	return false
 }
 
-func (s set[T, C]) length() uint {
-	return uint(len(s.s))
+func (s *set[T, C]) length() uint {
+	return uint(len(s.idAddCount))
 }
 
-func (s set[T, C]) id(t T) string {
+func (s *set[T, C]) id(t T) string {
 	return s.idfunc(t)
 }
 
-func (s set[T, C]) count(t T) C {
-	if c, ok := s.c[s.id(t)]; ok {
+func (s *set[T, C]) count(t T) C {
+	if c, ok := s.idValue[s.id(t)]; ok {
 		return c
 	} else {
 		return 0
 	}
 }
 
-func (s set[T, C]) contains(id string) bool {
-	_, ok := s.c[id]
+func (s *set[T, C]) contains(id string) bool {
+	_, ok := s.idValue[id]
 	return ok
 }
 
-func (s set[T, C]) ToSlice() []T {
+// ToSlice returns a slice of values in insertion order
+func (s *set[T, C]) ToSlice() []T {
 	var values []T
-	for k := range s.s {
-		values = append(values, s.s[k])
+	for idx := range s.insertionOrder {
+		values = append(values, s.idAddCount[s.insertionOrder[idx]])
 	}
 	return values
 }

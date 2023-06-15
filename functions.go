@@ -1,3 +1,23 @@
+/*
+Package sets is a package that represents as idiomatic `Set` implemenation as I can conceive of as of the time of the last commit.
+Most `Set` implementations focus on a more C++/Java/C# false "OOP" approach. Defining an `interface` that some `struct` then has a bunch of
+receiver methods that manipulate the internal state of the `Set` and ensure its contractual behavior.
+
+Receiver methods on value types, is not the most idiomatic Go. So my approach is package level functions that apply the
+`Set` logic and maintain high cohesion and loose coupling from my implementation details.
+
+This way client code does not get tightly coupled with the interface and implementation.
+This is mainly because `Set` semantics are only really inforced when building or adding to the `Set`.
+Thus, once you finish creating the `Set` you can easily call `ToSlice()` get an insertion order slice of the values
+and used them other code that expects `[]T` and not `Set`.
+
+There is no `SortedSet` implementation because that mixes concerns, a `Set` concerns are simple, no duplicates.
+If you need a `SortedSet` then you build your `Set` and then sort the resulting `ToSlice()` results.
+
+I only added tracking copies of duplicates added because the value portion of that map was going to be empty any way.
+Might as well put it to some use and keep track of how many duplicates were added. This would allow one to use it as a
+sparse slice and generate the duplicates back again if needed.
+*/
 package sets
 
 import (
@@ -8,10 +28,11 @@ import (
 
 // New creates a new Set using the identity.HashStructIdentity function for determining uniqueness of non-comparable T any
 func New[T any, C uint8 | uint16 | uint32 | uint64](s ...T) Set[T, C] {
-	ns := set[T, C]{
-		s:      map[string]T{},
-		c:      map[string]C{},
-		idfunc: identity.HashIdentity[T],
+	ns := &set[T, C]{
+		insertionOrder: make([]string, 9, len(s)),
+		idAddCount:     make(map[string]T, len(s)),
+		idValue:        make(map[string]C, len(s)),
+		idfunc:         identity.HashIdentity[T],
 	}
 	Add[T, C](ns, s...)
 	return ns
