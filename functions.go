@@ -32,11 +32,7 @@ func New[T any](s ...T) Set[T] {
 	return ns
 }
 
-func From[T any](s []T) Set[T] {
-	return New[T](s...)
-}
-
-// Add this mutates the internal state of the Set
+// Add this mutates the internal state of the Set s
 func Add[T any](s Set[T], ts ...T) {
 	for _, t := range ts {
 		s.add(t)
@@ -57,14 +53,14 @@ func ContainsExactly[T any](s1 Set[T], s2 Set[T]) bool {
 	s2ids := slices.Clone(s2.identities())
 	slices.Sort(s1ids)
 	slices.Sort(s2ids)
-	return slices.Equal(s1.identities(), s2.identities())
+	return slices.Equal(s1ids, s2ids)
 }
 
 // Union returns a new Set with all the items from all the Sets
 func Union[T any](s1 ...Set[T]) Set[T] {
 	ns := New[T]()
 	for _, s := range s1 {
-		Add(New[T](s.ToSlice()...))
+		Add(ns, s.ToSlice()...)
 	}
 	return ns
 }

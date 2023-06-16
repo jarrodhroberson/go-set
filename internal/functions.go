@@ -1,9 +1,9 @@
 package internal
 
-func Map[T any, R any](a []T, f func(t T) R) []R {
-	r := make([]R, 0, len(a))
-	for idx := range a {
-		r = append(r, f(a[idx]))
+func Map[T any, R any](in []T, f func(t T) R) []R {
+	r := make([]R, 0, len(in))
+	for idx := range in {
+		r = append(r, f(in[idx]))
 	}
 	return r
 }
