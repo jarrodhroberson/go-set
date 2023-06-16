@@ -36,7 +36,7 @@ type Set[T any] interface {
 	identities() []string
 	add(t T) string
 	get(id string) (T, error)
-	remove(t T) bool
+	remove(t T) boolt
 	ToSlice() []T
 }
 
