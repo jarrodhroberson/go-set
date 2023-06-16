@@ -1,21 +1,17 @@
 package identity
 
 import (
+	"bytes"
 	"crypto/sha512"
+	"encoding/binary"
 	"encoding/hex"
 	"hash"
 	"reflect"
 	"sort"
 	"strings"
-)
 
-func keysToSlice[K comparable, V any](m map[K]V) []K {
-	ks := make([]K, 0, len(m))
-	for k := range m {
-		ks = append(ks, k)
-	}
-	return ks
-}
+	"github.com/jarrodhroberson/go-set/internal"
+)
 
 func includeFieldPredicate(f reflect.StructField, v reflect.Value) (bool, error) {
 	if str := f.Tag.Get("identity"); str != "" {
@@ -26,64 +22,81 @@ func includeFieldPredicate(f reflect.StructField, v reflect.Value) (bool, error)
 	return true, nil
 }
 
-func primitiveStrategy(h hash.Hash, rv reflect.Value) bool {
+func primitiveStrategy(h hash.Hash, rv reflect.Value) ([]byte, bool) {
 	switch rv.Kind() {
 	case reflect.String:
-		h.Sum([]byte(rv.String()))
-		return true
+		return []byte(rv.String()), true
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		h.Sum()
+		var b bytes.Buffer
+		_ = binary.Write(&b, binary.BigEndian, rv.Int())
+		return b.Bytes(), true
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		var b bytes.Buffer
+		_ = binary.Write(&b, binary.BigEndian, rv.Uint())
+		return b.Bytes(), true
 	case reflect.Float32, reflect.Float64:
+		var b bytes.Buffer
+		_ = binary.Write(&b, binary.BigEndian, rv.Float())
+		return b.Bytes(), true
 	case reflect.Bool:
-	case reflect.Array, reflect.Slice:
-		return true
+		var b bytes.Buffer
+		_ = binary.Write(&b, binary.BigEndian, rv.Bool())
+		return b.Bytes(), true
 	default:
-		return false
+		return nil, false
 	}
 }
 
-func pointerStrategy(h hash.Hash, rv reflect.Value) bool {
+func pointerStrategy(h hash.Hash, rv reflect.Value) ([]byte, bool) {
 	if rv.Kind() == reflect.Ptr {
 		if !rv.IsNil() || rv.Type().Elem().Kind() == reflect.Struct {
 			return structStrategy(h, rv)
 		} else {
 			zero := reflect.Zero(rv.Type().Elem())
-			if primitiveStrategy(h, zero) {
-				return true
-			} else if mapStrategy(h, zero) {
-				return true
-			} else if pointerStrategy(h, zero) {
-				return true
+			if b, ok := primitiveStrategy(h, zero); ok {
+				return b, true
+			} else if b, ok := mapStrategy(h, zero); ok {
+				return b, true
+			} else if b, ok := pointerStrategy(h, zero); ok {
+				return b, true
 			}
-			return false
+			return nil, false
 		}
 	}
-	return false
+	return nil, false
 }
 
-func mapStrategy(h hash.Hash, rv reflect.Value) bool {
+func mapStrategy(h hash.Hash, rv reflect.Value) ([]byte, bool) {
 	if rv.Kind() == reflect.Map {
 		mk := rv.MapKeys()
 		kv := make(map[string]reflect.Value, len(mk))
 		for _, k := range mk {
 			kv[k.String()] = k
 		}
-		keys := keysToSlice[string, reflect.Value](kv)
+		keys := internal.MapKeysAsSlice[string, reflect.Value](kv)
 		sort.Strings(keys)
-		for _, key := range keys {
-			h.Sum(rv.MapIndex(kv[key]).Bytes())
+		b := bytes.Buffer{}
+		for idx := range keys {
+			strategies{
+				primitiveStrategy,
+				pointerStrategy,
+				mapStrategy,
+				structStrategy,
+				interfaceStrategy,
+				arraySliceStrategy,
+				defaultStrategy,
+			}.apply(h, rv.MapIndex(kv[keys[idx]]))
 		}
-		return true
+		return b.Bytes(), true
 	}
-	return false
+	return nil, false
 }
 
-func structStrategy(h hash.Hash, rv reflect.Value) bool {
+func structStrategy(h hash.Hash, rv reflect.Value) ([]byte, bool) {
 	if rv.Kind() == reflect.Struct {
 		vtype := rv.Type()
 		flen := vtype.NumField()
-		fieldMap := make(map[string]reflect.Value, flen)
+		kv := make(map[string]reflect.Value, flen)
 
 		for i := 0; i < flen; i++ {
 			field := vtype.Field(i)
@@ -94,24 +107,32 @@ func structStrategy(h hash.Hash, rv reflect.Value) bool {
 			if !ok {
 				continue
 			}
-			fieldMap[field.Name] = rv.Field(i)
+			kv[field.Name] = rv.Field(i)
 		}
 
-		keys := keysToSlice[string, reflect.Value](fieldMap)
+		keys := internal.MapKeysAsSlice[string, reflect.Value](kv)
 		sort.Strings(keys)
-		for _, k := range keys {
-			v := fieldMap[k]
-			h.Sum(v.Bytes())
+		b := bytes.Buffer{}
+		for idx := range keys {
+			strategies{
+				primitiveStrategy,
+				pointerStrategy,
+				mapStrategy,
+				structStrategy,
+				interfaceStrategy,
+				arraySliceStrategy,
+				defaultStrategy,
+			}.apply(h, rv.MapIndex(kv[keys[idx]]))
 		}
-		return true
+		return b.Bytes(), true
 	}
-	return false
+	return nil, false
 }
 
-func interfaceStrategy(h hash.Hash, rv reflect.Value) bool {
+func interfaceStrategy(h hash.Hash, rv reflect.Value) ([]byte, bool) {
 	if rv.Kind() == reflect.Interface {
 		if !rv.CanInterface() {
-			return false
+			return nil, false
 		}
 		strategies{
 			primitiveStrategy,
@@ -119,19 +140,39 @@ func interfaceStrategy(h hash.Hash, rv reflect.Value) bool {
 			mapStrategy,
 			structStrategy,
 			interfaceStrategy,
+			arraySliceStrategy,
 			defaultStrategy,
 		}.apply(h, reflect.ValueOf(rv.Interface()))
-		return true
 	}
-	return false
+	return nil, false
 }
 
-func defaultStrategy(h hash.Hash, rv reflect.Value) bool {
-	h.Sum(rv.Bytes())
-	return true
+func arraySliceStrategy(h hash.Hash, rv reflect.Value) ([]byte, bool) {
+	switch rv.Kind() {
+	case reflect.Array, reflect.Slice:
+		var b bytes.Buffer
+		for i := 0; i < rv.Len(); i++ {
+			strategies{
+				primitiveStrategy,
+				pointerStrategy,
+				mapStrategy,
+				structStrategy,
+				interfaceStrategy,
+				arraySliceStrategy,
+				defaultStrategy,
+			}.apply(h, rv)
+		}
+		return b.Bytes(), true
+	default:
+		return nil, false
+	}
 }
 
-type strategies []func(h hash.Hash, rv reflect.Value) bool
+func defaultStrategy(h hash.Hash, rv reflect.Value) ([]byte, bool) {
+	return rv.Bytes(), true
+}
+
+type strategies []func(h hash.Hash, rv reflect.Value) ([]byte, bool)
 
 var identityStrategies = strategies{
 	primitiveStrategy,
@@ -139,20 +180,21 @@ var identityStrategies = strategies{
 	mapStrategy,
 	structStrategy,
 	interfaceStrategy,
+	arraySliceStrategy,
 	defaultStrategy,
 }
 
-func (is strategies) apply(h hash.Hash, object any) {
+func (is strategies) apply(h hash.Hash, object any) []byte {
 	for _, strategy := range is {
-		if strategy(h, reflect.ValueOf(object)) {
-			break
+		if b, ok := strategy(h, reflect.ValueOf(object)); ok {
+			return b
 		}
 	}
+	return []byte{}
 }
 
 func hashAny[T any](object T, h hash.Hash) []byte {
-	identityStrategies.apply(h, object)
-	return h.Sum(nil)
+	return h.Sum(identityStrategies.apply(h, object))
 }
 
 func HashIdentity[T any](t T) string {

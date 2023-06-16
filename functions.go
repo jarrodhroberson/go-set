@@ -7,16 +7,12 @@ Receiver methods on value types, is not the most idiomatic Go. So my approach is
 `Set` logic and maintain high cohesion and loose coupling from my implementation details.
 
 This way client code does not get tightly coupled with the interface and implementation.
-This is mainly because `Set` semantics are only really inforced when building or adding to the `Set`.
+This is mainly because `Set` semantics are only really enforced when building or adding to the `Set`.
 Thus, once you finish creating the `Set` you can easily call `ToSlice()` get an insertion order slice of the values
 and used them other code that expects `[]T` and not `Set`.
 
 There is no `SortedSet` implementation because that mixes concerns, a `Set` concerns are simple, no duplicates.
 If you need a `SortedSet` then you build your `Set` and then sort the resulting `ToSlice()` results.
-
-I only added tracking copies of duplicates added because the value portion of that map was going to be empty any way.
-Might as well put it to some use and keep track of how many duplicates were added. This would allow one to use it as a
-sparse slice and generate the duplicates back again if needed.
 */
 package sets
 
@@ -27,26 +23,28 @@ import (
 )
 
 // New creates a new Set using the identity.HashStructIdentity function for determining uniqueness of non-comparable T any
-func New[T any, C uint8 | uint16 | uint32 | uint64](s ...T) Set[T, C] {
-	ns := &set[T, C]{
-		insertionOrder: make([]string, 0, len(s)),
-		idAddCount:     make(map[string]T, len(s)),
-		idValue:        make(map[string]C, len(s)),
-		idfunc:         identity.HashIdentity[T],
+func New[T any](s ...T) Set[T] {
+	ns := &set[T]{
+		idValue: make(map[string]T, len(s)),
+		idfunc:  identity.HashIdentity[T],
 	}
-	Add[T, C](ns, s...)
+	Add[T](ns, s...)
 	return ns
 }
 
+func From[T any](s []T) Set[T] {
+	return New[T](s...)
+}
+
 // Add this mutates the internal state of the Set
-func Add[T any, C uint8 | uint16 | uint32 | uint64](s Set[T, C], ts ...T) {
+func Add[T any](s Set[T], ts ...T) {
 	for _, t := range ts {
 		s.add(t)
 	}
 }
 
 // Remove this mutates the internal state of the Set
-func Remove[T any, C uint8 | uint16 | uint32 | uint64](s Set[T, C], ts ...T) {
+func Remove[T any](s Set[T], ts ...T) {
 	for _, t := range ts {
 		s.remove(t)
 	}
@@ -54,7 +52,7 @@ func Remove[T any, C uint8 | uint16 | uint32 | uint64](s Set[T, C], ts ...T) {
 
 // ContainsExactly tests to see if the Sets contain exactly the same things in any order.
 // This can be used as a basic "equals" test as well.
-func ContainsExactly[T any, C uint8 | uint16 | uint32 | uint64](s1 Set[T, C], s2 Set[T, C]) bool {
+func ContainsExactly[T any](s1 Set[T], s2 Set[T]) bool {
 	s1ids := slices.Clone(s1.identities())
 	s2ids := slices.Clone(s2.identities())
 	slices.Sort(s1ids)
@@ -63,17 +61,17 @@ func ContainsExactly[T any, C uint8 | uint16 | uint32 | uint64](s1 Set[T, C], s2
 }
 
 // Union returns a new Set with all the items from all the Sets
-func Union[T any, C uint8 | uint16 | uint32 | uint64](s1 ...Set[T, C]) Set[T, C] {
-	ns := New[T, C]()
+func Union[T any](s1 ...Set[T]) Set[T] {
+	ns := New[T]()
 	for _, s := range s1 {
-		Add(New[T, C](s.ToSlice()...))
+		Add(New[T](s.ToSlice()...))
 	}
 	return ns
 }
 
 // Intersection returns a new Set with only the items that exist in both Sets
-func Intersection[T any, C uint8 | uint16 | uint32 | uint64](s1 Set[T, C], s2 Set[T, C]) Set[T, C] {
-	ns := New[T, C]()
+func Intersection[T any](s1 Set[T], s2 Set[T]) Set[T] {
+	ns := New[T]()
 	for _, id := range s1.identities() {
 		if v, err := s2.get(id); err == nil {
 			ns.add(v)
