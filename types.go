@@ -1,3 +1,28 @@
+/*
+Package sets is a package that represents as idiomatic `Set` implemenation as I can conceive of as of the time of the last commit.
+Most `Set` implementations focus on a more C++/Java/C# false "OOP" approach. Defining an `interface` that some `struct` then has a bunch of
+receiver methods that manipulate the internal state of the `Set` and ensure its contractual behavior.
+
+Receiver methods on value types, is not the most idiomatic Go. So my approach is package level functions that apply the
+`Set` logic and maintain high cohesion and loose coupling from my implementation details.
+
+This way client code does not get tightly coupled with the interface and implementation.
+This is mainly because `Set` semantics are only really enforced when building or adding to the `Set`.
+Thus, once you finish creating the `Set` you can easily call `ToSlice()` get an insertion order slice of the values
+and used them other code that expects `[]T` and not `Set`.
+
+There is no `SortedSet` implementation because that mixes concerns, a `Set` concerns are simple, no duplicates.
+If you need a `SortedSet` then you build your `Set` and then sort the resulting `ToSlice()` results.
+
+I am also trying to implement some ideas from Alan Kay.
+
+"OOP to me means only messaging, local retention and protection and
+hiding of state-process, and extreme late-binding of all things."
+
+That is why there is a Set interface with only one exported function, the one that lets you retrieve the `Set` as a `slice`.
+That is why the `set` struct that tracks state nothing is exported.
+Late binding of all things is really hard in a staticly typed language, so we have to do with Generics.
+*/
 package sets
 
 import (
@@ -12,9 +37,6 @@ type Set[T any] interface {
 	add(t T) string
 	get(id string) (T, error)
 	remove(t T) bool
-	length() uint
-	id(t T) string
-	contains(id string) bool
 	ToSlice() []T
 }
 
@@ -56,19 +78,6 @@ func (s *set[T]) remove(t T) bool {
 		return true
 	}
 	return false
-}
-
-func (s *set[T]) length() uint {
-	return uint(len(s.idValue))
-}
-
-func (s *set[T]) id(t T) string {
-	return s.idfunc(t)
-}
-
-func (s *set[T]) contains(id string) bool {
-	_, ok := s.idValue[id]
-	return ok
 }
 
 // ToSlice returns a slice of values in non deterministic order
