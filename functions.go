@@ -1,16 +1,15 @@
 package sets
 
 import (
+	"github.com/jarrodhroberson/destruct"
 	"golang.org/x/exp/slices"
-
-	"github.com/jarrodhroberson/go-set/internal/identity"
 )
 
 // New creates a new Set using the identity.HashStructIdentity function for determining uniqueness of non-comparable T any
 func New[T any](s ...T) Set[T] {
 	ns := &set[T]{
 		idValue: make(map[string]T, len(s)),
-		idfunc:  identity.HashIdentity[T],
+		idfunc:  destruct.HashIdentity[T],
 	}
 	Add[T](ns, s...)
 	return ns
