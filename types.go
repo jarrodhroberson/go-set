@@ -80,7 +80,7 @@ func (s *set[T]) remove(t T) bool {
 	return false
 }
 
-// ToSlice returns a slice of values in non deterministic order
+// ToSlice returns a slice of values in non-deterministic order
 func (s *set[T]) ToSlice() []T {
 	var values []T
 	for idx := range s.idValue {
